@@ -1,0 +1,206 @@
+﻿@page "/"
+@inject IDialogService DialogService
+@using System.Text
+@using MudBlazor
+
+<MudContainer>
+    <h1>ISAM Index</h1>
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <h3>Add Record</h3>
+            <MudForm>
+                <MudTextField @bind-Value="@key" Label="Key" />
+                <MudTextField @bind-Value="@data" Label="Data" />
+                <MudTextField @bind-Value="@maxRecords" Label="Max Records" />
+                <MudTextField @bind-Value="@recordSize" Label="Record Size" />
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddRecord">Add Record</MudButton>
+            </MudForm>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <h3>Find Record</h3>
+            <MudForm>
+                <MudTextField @bind-Value="@searchKey" Label="Key" />
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="FindRecord">Find Record</MudButton>
+            </MudForm>
+        </MudItem>
+        @{
+            Snackbar.Configuration.PositionClass = Defaults.Classes.Position.BottomCenter;
+            Snackbar.Configuration.PreventDuplicates = false;
+            Snackbar.Configuration.NewestOnTop = true;
+            Snackbar.Configuration.SnackbarVariant = Variant.Filled;
+            Snackbar.Configuration.MaxDisplayedSnackbars = 10;
+            Snackbar.Configuration.HideTransitionDuration = 300;
+            Snackbar.Configuration.VisibleStateDuration = 3000;
+            Snackbar.Configuration.ShowTransitionDuration = 300;
+            Snackbar.Add(_errorMessage, Severity.Error);
+            if (_errorMessage == "")
+            {
+                return;
+            }
+        }
+
+    </MudGrid>
+
+    @if (searchResult != null)
+    {
+        <h3>Search Result</h3>
+        <p>@searchResult</p>
+    }
+</MudContainer>
+@code {
+    private string key;
+    private string data;
+    private string searchKey;
+    private string searchResult;
+    private int maxRecords;
+    private int recordSize;
+    string _errorMessage = "";
+
+
+    private void AddRecord()
+    {
+        ISAM isam = new ISAM("data.dat", "index.dat", maxRecords, recordSize);
+        try
+        {
+            isam.CreateDataFile();
+            isam.CreateIndexFile();
+            isam.WriteRecord(key, data);
+            Snackbar.Configuration.PositionClass = Defaults.Classes.Position.BottomCenter;
+            Snackbar.Configuration.PreventDuplicates = false;
+            Snackbar.Configuration.NewestOnTop = true;
+            Snackbar.Configuration.SnackbarVariant = Variant.Filled;
+            Snackbar.Configuration.MaxDisplayedSnackbars = 10;
+            Snackbar.Configuration.HideTransitionDuration = 300;
+            Snackbar.Configuration.VisibleStateDuration = 3000;
+            Snackbar.Configuration.ShowTransitionDuration = 300;
+
+            Snackbar.Add("Record added successfully.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            isam.Close();
+        }
+    }
+
+    private void FindRecord()
+    {
+        ISAM isam = new ISAM("data.dat", "index.dat", maxRecords, recordSize);
+        try
+        {
+            searchResult = isam.ReadRecord(searchKey);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            isam.Close();
+        }
+    }
+
+    public class ISAM
+    {
+        private string dataFilePath;
+        private string indexFilePath;
+        private FileStream dataStream;
+        private FileStream indexStream;
+        private int maxRecords;
+        private int recordSize;
+
+        public ISAM(string dataFilePath, string indexFilePath, int maxRecords, int recordSize)
+        {
+            this.dataFilePath = dataFilePath;
+            this.indexFilePath = indexFilePath;
+            this.maxRecords = maxRecords;
+            this.recordSize = recordSize;
+        }
+
+        public void CreateDataFile()
+        {
+            if (dataStream == null)
+            {
+                dataStream = new FileStream(dataFilePath, FileMode.Create, FileAccess.Write);
+            }
+        }
+
+        public void CreateIndexFile()
+        {
+            if (indexStream == null)
+            {
+                indexStream = new FileStream(indexFilePath, FileMode.Create, FileAccess.Write);
+            }
+        }
+
+        public void WriteRecord(string key, string data)
+        {
+            byte[] keyBytes = Encoding.ASCII.GetBytes(key);
+            byte[] dataBytes = Encoding.ASCII.GetBytes(data);
+
+            if (dataBytes.Length + keyBytes.Length > recordSize)
+            {
+                throw new Exception("Record size is too large.");
+            }
+
+            long position = dataStream.Length;
+
+            if (position / recordSize >= maxRecords)
+            {
+                throw new Exception("Overflow occurred.");
+            }
+
+            dataStream.Write(keyBytes, 0, keyBytes.Length);
+            dataStream.Write(dataBytes, 0, dataBytes.Length);
+
+            indexStream.Write(keyBytes, 0, keyBytes.Length);
+            indexStream.Write(BitConverter.GetBytes(position), 0, sizeof(long));
+        }
+
+        public string ReadRecord(string key)
+        {
+            byte[] keyBytes = Encoding.ASCII.GetBytes(key);
+
+            byte[] buffer = new byte[keyBytes.Length + sizeof(long)];
+            int bytesRead;
+
+            using (indexStream = new FileStream(indexFilePath, FileMode.Open, FileAccess.Read))
+            {
+                while (indexStream != null && (bytesRead = indexStream.Read(buffer, 0, buffer.Length)) == buffer.Length)
+                {
+                    if (keyBytes.SequenceEqual(buffer.Take(keyBytes.Length)))
+                    {
+                        long position = BitConverter.ToInt64(buffer, keyBytes.Length);
+                        using (dataStream = new FileStream(dataFilePath, FileMode.Open, FileAccess.Read))
+                        {
+                            byte[] data = new byte[dataStream.Length - position];
+                            dataStream.Read(data, (int)position, data.Length);
+                            return Encoding.ASCII.GetString(data);
+                        }
+                    }
+                }
+            }
+
+            throw new Exception("Record not found.");
+        }
+
+        public void Close()
+        {
+            if (dataStream != null)
+            {
+                dataStream.Close();
+                dataStream = null;
+            }
+
+            if (indexStream != null)
+            {
+                indexStream.Close();
+                indexStream = null;
+            }
+        }
+    }
+}

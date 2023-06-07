@@ -1,26 +1,25 @@
 ﻿@page "/"
 @inject IDialogService DialogService
-@using System.Text
-@using MudBlazor
 
 <MudContainer>
-    <h1>ISAM Index</h1>
-    <MudGrid>
-        <MudItem xs="12" md="6">
+
+    <MudGrid Justify="Justify.Center">
+        <MudItem Style="max-width: 500px;" xs="12" md="6">
+            <MudText Typo="Typo.h5" Style="justify-content: center">ISAM Index</MudText>
             <h3>Add Record</h3>
             <MudForm>
-                <MudTextField @bind-Value="@key" Label="Key" />
-                <MudTextField @bind-Value="@data" Label="Data" />
-                <MudTextField @bind-Value="@maxRecords" Label="Max Records" />
-                <MudTextField @bind-Value="@recordSize" Label="Record Size" />
+                <MudTextField @bind-Value="@key" Immediate="true" Label="Key"/>
+                <MudTextField @bind-Value="@data" Immediate="true" Label="Data"/>
+                <MudTextField @bind-Value="@maxRecords" Immediate="true" Variant="Variant.Text" Adornment="Adornment.End" Label="Max Records"/>
+                <MudTextField @bind-Value="@recordSize" Immediate="true" Variant="Variant.Text" Adornment="Adornment.End" AdornmentText="Byte" AdornmentColor="Color.Info" Label="Record Size"/>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddRecord">Add Record</MudButton>
             </MudForm>
         </MudItem>
 
-        <MudItem xs="12" md="6">
+        <MudItem Style="max-width: 500px;" xs="12" md="6">
             <h3>Find Record</h3>
             <MudForm>
-                <MudTextField @bind-Value="@searchKey" Label="Key" />
+                <MudTextField @bind-Value="@searchKey" Label="Key"/>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="FindRecord">Find Record</MudButton>
             </MudForm>
         </MudItem>
@@ -44,23 +43,37 @@
 
     @if (searchResult != null)
     {
-        <h3>Search Result</h3>
-        <p>@searchResult</p>
+       
+            <MudGrid Justify="Justify.Center">
+                <MudItem xs="12" md="6">
+                    @{
+                        var messageBox = DialogService.ShowMessageBox("Search Result", searchResult, yesText: "Close");
+                        return;
+                    }
+                </MudItem>
+            </MudGrid>
     }
 </MudContainer>
+
 @code {
     private string key;
     private string data;
     private string searchKey;
     private string searchResult;
-    private int maxRecords;
-    private int recordSize;
+    private int maxRecords = 10;
+    private int recordSize = 100;
     string _errorMessage = "";
 
 
     private void AddRecord()
     {
-        ISAM isam = new ISAM("data.dat", "index.dat", maxRecords, recordSize);
+        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(data) || maxRecords == 0 || recordSize == 0)
+        {
+            Snackbar.Add("Please enter values for all fields.", Severity.Warning);
+            return;
+        }
+
+        var isam = new ISAM("data.dat", "index.dat", maxRecords, recordSize);
         try
         {
             isam.CreateDataFile();
@@ -89,7 +102,12 @@
 
     private void FindRecord()
     {
-        ISAM isam = new ISAM("data.dat", "index.dat", maxRecords, recordSize);
+        if (string.IsNullOrEmpty(searchKey))
+        {
+            Snackbar.Add("Please enter values in fields.", Severity.Warning);
+            return;
+        }
+        var isam = new ISAM("data.dat", "index.dat", maxRecords, recordSize);
         try
         {
             searchResult = isam.ReadRecord(searchKey);
@@ -106,12 +124,12 @@
 
     public class ISAM
     {
-        private string dataFilePath;
-        private string indexFilePath;
+        private readonly string dataFilePath;
+        private readonly string indexFilePath;
         private FileStream dataStream;
         private FileStream indexStream;
-        private int maxRecords;
-        private int recordSize;
+        private readonly int maxRecords;
+        private readonly int recordSize;
 
         public ISAM(string dataFilePath, string indexFilePath, int maxRecords, int recordSize)
         {
@@ -123,7 +141,7 @@
 
         public void CreateDataFile()
         {
-            if (dataStream == null)
+            if (dataStream is null)
             {
                 dataStream = new FileStream(dataFilePath, FileMode.Create, FileAccess.Write);
             }
@@ -131,7 +149,7 @@
 
         public void CreateIndexFile()
         {
-            if (indexStream == null)
+            if (indexStream is null)
             {
                 indexStream = new FileStream(indexFilePath, FileMode.Create, FileAccess.Write);
             }
@@ -139,15 +157,15 @@
 
         public void WriteRecord(string key, string data)
         {
-            byte[] keyBytes = Encoding.ASCII.GetBytes(key);
-            byte[] dataBytes = Encoding.ASCII.GetBytes(data);
+            var keyBytes = Encoding.ASCII.GetBytes(key);
+            var dataBytes = Encoding.ASCII.GetBytes(data);
 
             if (dataBytes.Length + keyBytes.Length > recordSize)
             {
                 throw new Exception("Record size is too large.");
             }
 
-            long position = dataStream.Length;
+            var position = dataStream.Length;
 
             if (position / recordSize >= maxRecords)
             {
@@ -163,9 +181,9 @@
 
         public string ReadRecord(string key)
         {
-            byte[] keyBytes = Encoding.ASCII.GetBytes(key);
+            var keyBytes = Encoding.ASCII.GetBytes(key);
 
-            byte[] buffer = new byte[keyBytes.Length + sizeof(long)];
+            var buffer = new byte[keyBytes.Length + sizeof(long)];
             int bytesRead;
 
             using (indexStream = new FileStream(indexFilePath, FileMode.Open, FileAccess.Read))
@@ -174,10 +192,10 @@
                 {
                     if (keyBytes.SequenceEqual(buffer.Take(keyBytes.Length)))
                     {
-                        long position = BitConverter.ToInt64(buffer, keyBytes.Length);
+                        var position = BitConverter.ToInt64(buffer, keyBytes.Length);
                         using (dataStream = new FileStream(dataFilePath, FileMode.Open, FileAccess.Read))
                         {
-                            byte[] data = new byte[dataStream.Length - position];
+                            var data = new byte[dataStream.Length - position];
                             dataStream.Read(data, (int)position, data.Length);
                             return Encoding.ASCII.GetString(data);
                         }
@@ -203,4 +221,5 @@
             }
         }
     }
+
 }

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Hosting.StaticWebAssets;
-using MudBlazor;
 using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);

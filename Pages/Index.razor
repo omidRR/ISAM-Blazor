@@ -12,7 +12,7 @@
                 <MudTextField @bind-Value="@data" Immediate="true" Label="Data"/>
                 <MudTextField @bind-Value="@maxRecords" Immediate="true" Variant="Variant.Text" Adornment="Adornment.End" Label="Max Records"/>
                 <MudTextField @bind-Value="@recordSize" Immediate="true" Variant="Variant.Text" Adornment="Adornment.End" AdornmentText="Byte" AdornmentColor="Color.Info" Label="Record Size"/>
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddRecord">Add Record</MudButton>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Add" OnClick="AddRecord">Add Record</MudButton>
             </MudForm>
         </MudItem>
 
@@ -20,10 +20,14 @@
             <h3>Find Record</h3>
             <MudForm>
                 <MudTextField @bind-Value="@searchKey" Label="Key"/>
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="FindRecord">Find Record</MudButton>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.FindInPage" OnClick="FindRecord">Find Record</MudButton>
             </MudForm>
         </MudItem>
         @{
+            if (string.IsNullOrEmpty(_errorMessage))
+            {  
+                return;
+            }
             Snackbar.Configuration.PositionClass = Defaults.Classes.Position.BottomCenter;
             Snackbar.Configuration.PreventDuplicates = false;
             Snackbar.Configuration.NewestOnTop = true;
@@ -33,25 +37,21 @@
             Snackbar.Configuration.VisibleStateDuration = 3000;
             Snackbar.Configuration.ShowTransitionDuration = 300;
             Snackbar.Add(_errorMessage, Severity.Error);
-            if (_errorMessage == "")
-            {
-                return;
-            }
+            _errorMessage = null;
         }
 
     </MudGrid>
 
-    @if (searchResult != null)
+    @if (!string.IsNullOrEmpty(searchResult))
     {
-       
-            <MudGrid Justify="Justify.Center">
-                <MudItem xs="12" md="6">
-                    @{
-                        var messageBox = DialogService.ShowMessageBox("Search Result", searchResult, yesText: "Close");
-                        return;
-                    }
-                </MudItem>
-            </MudGrid>
+        <MudGrid Justify="Justify.Center">
+            <MudItem xs="12" md="6">
+                @{
+                    var messageBox = DialogService.ShowMessageBox("Search Result", searchResult, yesText: "Close");
+                    searchResult = null;
+                }
+            </MudItem>
+        </MudGrid>
     }
 </MudContainer>
 
@@ -67,7 +67,7 @@
 
     private void AddRecord()
     {
-        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(data) || maxRecords == 0 || recordSize == 0)
+        if (string.IsNullOrEmpty(key) || data=="" || maxRecords == 0 || recordSize == 0)
         {
             Snackbar.Add("Please enter values for all fields.", Severity.Warning);
             return;
@@ -167,7 +167,7 @@
 
             var position = dataStream.Length;
 
-            if (position / recordSize >= maxRecords)
+            if (data.Length < maxRecords )
             {
                 throw new Exception("Overflow occurred.");
             }
